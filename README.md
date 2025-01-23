@@ -66,7 +66,7 @@ SmartDOC is designed to make interacting with documents effortless and insightfu
 
 - **`main.py`**: Core application logic with support for document processing, vectorization, and conversational interaction.
 - **`requirements.txt`**: Dependency list for setting up the Python environment.
-- **`.env`**: Configuration file for storing sensitive keys (e.g., `GOOGLE_API_KEY`).
+- **`.env`**: Configuration file for storing sensitive keys (e.g., `GROQ_API_KEY`).
 
 ---
 
