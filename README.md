@@ -46,9 +46,9 @@ SmartDOC is designed to make interacting with documents effortless and insightfu
    ```
 
 3. **Set up Environment Variables**:
-   Update the `.env` file with your `GOOGLE_API_KEY`:
+   Update the `.env` file with your `GROQ_API_KEY`:
    ```plaintext
-   GOOGLE_API_KEY=Your_API_KEY
+   GROQ_API_KEY=Your_API_KEY
    ```
 
 4. **Run the Application**:
