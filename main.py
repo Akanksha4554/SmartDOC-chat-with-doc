@@ -16,6 +16,8 @@ import re
 from nltk.corpus import stopwords
 import fitz  # PyMuPDF for better PDF extraction
 import io
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase
+import speech_recognition as sr
 
 
 # Load environment variables
@@ -30,6 +32,7 @@ class CustomDocument:
     def __init__(self, page_content, metadata=None):
         self.page_content = page_content
         self.metadata = metadata or {}
+
 
 
 # Function to load documents based on file type (PDF, Word, PowerPoint, Text)
@@ -49,9 +52,7 @@ def load_document(file_path):
         raise ValueError(f"Unsupported file type: {file_extension}")
 
     # Convert raw documents to CustomDocument objects
-    documents = []
-    for text in raw_documents:
-        documents.append(CustomDocument(text))
+    documents = [CustomDocument(text) for text in raw_documents]
     return documents
 
 
@@ -157,6 +158,24 @@ def create_chain(vectorstore):
     return chain
 
 
+# Function to handle voice input
+def handle_voice_query():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Listening for your question... Speak now.")
+        try:
+            audio = recognizer.listen(source, timeout=5)
+            query = recognizer.recognize_google(audio)
+            return query
+        except sr.UnknownValueError:
+            st.error("Sorry, I couldn't understand what you said. Please try again.")
+        except sr.RequestError as e:
+            st.error(f"Could not request results; {e}")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+    return None
+
+
 # Set up Streamlit page
 st.set_page_config(
     page_title="Chat with Doc",
@@ -183,10 +202,21 @@ with st.expander("**About this app**"):
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-# File upload for multiple documents (PDF, DOCX, PPTX, TXT)
+# Layout: File upload section
 uploaded_files = st.file_uploader(label="Upload your documents", type=["pdf", "docx", "pptx", "txt"],
                                   accept_multiple_files=True)
 
+# Layout: User Question input
+user_input = st.text_input("Enter your questions:")
+
+# Voice input button
+if st.button("Ask via Voice"):
+    voice_query = handle_voice_query()
+    if voice_query:
+        user_input = voice_query
+        st.info(f"Question: {user_input}")
+
+# Document processing and question-answering logic after file upload
 if uploaded_files:
     # Save files to disk
     file_paths = []
@@ -210,11 +240,6 @@ if uploaded_files:
         # Preprocess documents for better extraction
         all_documents = [CustomDocument(preprocess_text(doc.page_content)) for doc in all_documents]
 
-        # Limit the chat history to the last 5 messages
-        MAX_HISTORY_LENGTH = 5
-        formatted_chat_history = [(msg["role"], msg["content"]) for msg in
-                                  st.session_state.chat_history[-MAX_HISTORY_LENGTH:]]
-
         # Setup vector store and conversation chain
         if "vectorstore" not in st.session_state:
             st.session_state.vectorstore = setup_vectorstore(all_documents)
@@ -233,8 +258,6 @@ for message in st.session_state.chat_history:
         st.markdown(message["content"])
 
 # Handling user inputs (queries)
-user_input = st.chat_input("Ask SmartDOC...")
-
 if user_input:
     st.session_state.chat_history.append({"role": "user", "content": user_input})
 
@@ -255,14 +278,12 @@ if user_input:
         response = st.session_state.conversation_chain(query_with_history)
         assistant_response = response["answer"]
 
-        # Filter out verbose explanations like "Given the new context..."
-        cleaned_response = re.sub(r'(Given the new context.*?refine the summary\.)|(^\s*There is no document to summarize.*)', '', assistant_response, flags=re.DOTALL).strip()
-
-        # Optionally filter out unnecessary details (like explanation of integrations)
-        cleaned_response = re.sub(r"(These applications are integrated.*?analysis\.)", "", cleaned_response)
+        # Filter out verbose explanations like "Given the new context...".
+        cleaned_response = re.sub(r'(Given the new context.?refine the summary\.)|(^\s*There is no document to summarize.)', '', assistant_response, flags=re.DOTALL).strip()
 
         # Provide the final cleaned answer
         with st.chat_message("assistant"):
+            st.markdown(f"Answer for your question '{user_input}' has been generated.")
             st.markdown(cleaned_response)
             st.session_state.chat_history.append({"role": "assistant", "content": cleaned_response})
 
